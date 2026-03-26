@@ -43,7 +43,7 @@
     }
 
     /* Canvas */
-    #flow-canvas { width: 100%; height: 280px; display: block; }
+    #flow-canvas { width: 100%; height: 360px; display: block; }
 
     /* Two-column grid */
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
@@ -228,6 +228,7 @@ ws.onmessage = (e) => {
   if (msg.type === "heartbeat") {
     sensorHeartbeat[msg.sensor_id] = Date.now();
     updateHealthGrid();
+    spawnParticle(msg);
   } else {
     sensorLatest[msg.sensor_id] = msg;
     updateSensorTable();
@@ -406,39 +407,52 @@ function getLayout() {
   const H = canvas.height;
   const padX = 80;
 
+  // Sensors span the full height, shared by both topic lanes
   const sensors = [
     { id: "sensor-1", label: "sensor-1\nGreenhouse A" },
     { id: "sensor-2", label: "sensor-2\nGreenhouse B" },
     { id: "sensor-3", label: "sensor-3\nOpen Field"   },
-  ].map((s, i, arr) => ({
-    ...s,
-    x: padX,
-    y: H * (0.2 + i * (0.6 / (arr.length - 1))),
-  }));
+  ].map((s, i) => ({ ...s, x: padX, y: H * (0.2 + i * 0.3) }));
 
-  const topic = {
-    x: W * 0.38, y: H / 2,
-    w: 130, h: 38,
+  // Top lane: sensor-readings
+  const topicReadings = {
+    id: "sensor-readings",
+    flashKey: "topic-readings",
+    x: W * 0.37, y: H * 0.27,
+    w: 130, h: 36,
     label: "sensor-readings",
+    color: "#3b82f6",
   };
-
-  const partitions = [0, 1, 2].map((id, i) => ({
-    id,
-    x: W * 0.62,
-    y: H * (0.25 + i * 0.25),
-    r: 24,
+  const partitionsReadings = [0, 1, 2].map((id, i) => ({
+    id, flashKey: "r-partition-" + id,
+    x: W * 0.60, y: H * (0.12 + i * 0.15), r: 20,
   }));
 
+  // Bottom lane: sensor-health
+  const topicHealth = {
+    id: "sensor-health",
+    flashKey: "topic-health",
+    x: W * 0.37, y: H * 0.77,
+    w: 120, h: 36,
+    label: "sensor-health",
+    color: "#22c55e",
+  };
+  const partitionsHealth = [0, 1, 2].map((id, i) => ({
+    id, flashKey: "h-partition-" + id,
+    x: W * 0.60, y: H * (0.62 + i * 0.15), r: 20,
+  }));
+
+  // Consumers on the right — only for sensor-readings
   const consumers = [
     { id: "dashboard", label: "Dashboard" },
     { id: "alerter",   label: "Alerter"   },
-  ].map((c, i, arr) => ({
+  ].map((c, i) => ({
     ...c,
     x: W - padX,
-    y: H * (0.3 + i * (0.4 / (arr.length - 1))),
+    y: H * (0.2 + i * 0.15),
   }));
 
-  return { sensors, topic, partitions, consumers };
+  return { sensors, topicReadings, partitionsReadings, topicHealth, partitionsHealth, consumers };
 }
 
 // Track flashing nodes: key → expiry timestamp
@@ -450,22 +464,32 @@ function isFlashing(key) { return (flashing[key] || 0) > Date.now(); }
 const particles = [];
 
 function spawnParticle(msg) {
-  const layout = getLayout();
-  const sensor    = layout.sensors.find(s => s.id === msg.sensor_id);
-  const partition = layout.partitions[msg.partition] ?? layout.partitions[0];
-  const consumer  = layout.consumers[0];
+  const L      = getLayout();
+  const sensor = L.sensors.find(s => s.id === msg.sensor_id);
   if (!sensor) return;
 
   flash("sensor-" + msg.sensor_id);
 
+  const isHeartbeat = msg.type === "heartbeat";
+  const topic      = isHeartbeat ? L.topicHealth      : L.topicReadings;
+  const partitions = isHeartbeat ? L.partitionsHealth : L.partitionsReadings;
+  const partition  = partitions[msg.partition] ?? partitions[0];
+
+  const waypoints = [
+    { x: topic.x,     y: topic.y,     flashKey: topic.flashKey },
+    { x: partition.x, y: partition.y, flashKey: partition.flashKey },
+  ];
+
+  // Readings go on to a consumer; heartbeats stop at the partition
+  if (!isHeartbeat) {
+    const consumer = L.consumers[0];
+    waypoints.push({ x: consumer.x, y: consumer.y, flashKey: "consumer-" + consumer.id });
+  }
+
   particles.push({
     color: SENSOR_COLORS[msg.sensor_id],
     x: sensor.x, y: sensor.y,
-    waypoints: [
-      { x: layout.topic.x,  y: layout.topic.y,  flashKey: "topic" },
-      { x: partition.x,     y: partition.y,      flashKey: "partition-" + partition.id },
-      { x: consumer.x,      y: consumer.y,       flashKey: "consumer-" + consumer.id },
-    ],
+    waypoints,
     wpIndex: 0,
     speed: 3.5,
   });
@@ -502,13 +526,14 @@ function drawSensorNode(s) {
 }
 
 function drawTopicBox(topic) {
-  const f = isFlashing("topic");
+  const f   = isFlashing(topic.flashKey);
+  const col = topic.color;
   drawRoundRect(topic.x, topic.y, topic.w, topic.h, 8,
-    f ? "#1e3a5f" : "#0f172a",
-    f ? "#60a5fa" : "#3b82f6",
+    f ? col + "22" : "#0f172a",
+    f ? col        : col + "99",
     f ? 2.5 : 1.5
   );
-  ctx.fillStyle    = "#60a5fa";
+  ctx.fillStyle    = col;
   ctx.font         = "bold 11px system-ui";
   ctx.textAlign    = "center";
   ctx.textBaseline = "middle";
@@ -516,7 +541,7 @@ function drawTopicBox(topic) {
 }
 
 function drawPartitionNode(p) {
-  const f = isFlashing("partition-" + p.id);
+  const f = isFlashing(p.flashKey);
   ctx.beginPath();
   ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
   ctx.fillStyle   = f ? "#1e3a5f" : "#0f172a";
@@ -588,18 +613,32 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const L = getLayout();
 
-  // ── connector lines ──
-  L.sensors.forEach(s => drawDashedLine(s.x + 55, s.y, L.topic.x - 65, L.topic.y));
-  L.partitions.forEach(p => drawDashedLine(L.topic.x + 65, L.topic.y, p.x - p.r, p.y));
+  // ── connector lines: top lane (sensor-readings) ──
+  L.sensors.forEach(s => drawDashedLine(s.x + 55, s.y, L.topicReadings.x - 65, L.topicReadings.y));
+  L.partitionsReadings.forEach(p => drawDashedLine(L.topicReadings.x + 65, L.topicReadings.y, p.x - p.r, p.y));
   L.consumers.forEach(c => {
-    L.partitions.forEach(p => drawDashedLine(p.x + p.r, p.y, c.x - 50, c.y));
+    L.partitionsReadings.forEach(p => drawDashedLine(p.x + p.r, p.y, c.x - 50, c.y));
   });
+
+  // ── connector lines: bottom lane (sensor-health) ──
+  L.sensors.forEach(s => drawDashedLine(s.x + 55, s.y, L.topicHealth.x - 60, L.topicHealth.y));
+  L.partitionsHealth.forEach(p => drawDashedLine(L.topicHealth.x + 60, L.topicHealth.y, p.x - p.r, p.y));
 
   // ── static nodes ──
   L.sensors.forEach(drawSensorNode);
-  drawTopicBox(L.topic);
-  L.partitions.forEach(drawPartitionNode);
+  drawTopicBox(L.topicReadings);
+  L.partitionsReadings.forEach(drawPartitionNode);
   L.consumers.forEach(drawConsumerNode);
+  drawTopicBox(L.topicHealth);
+  L.partitionsHealth.forEach(drawPartitionNode);
+
+  // ── consumer labels ──
+  ctx.save();
+  ctx.font      = "10px system-ui";
+  ctx.fillStyle = "#475569";
+  ctx.textAlign = "center";
+  ctx.fillText("consumers", L.consumers[0].x, L.consumers[0].y - 28);
+  ctx.restore();
 
   // ── particles ──
   for (let i = particles.length - 1; i >= 0; i--) {
