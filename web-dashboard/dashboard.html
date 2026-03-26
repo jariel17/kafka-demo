@@ -457,7 +457,7 @@ function getLayout() {
     x: W * 0.60, y: H * (0.62 + i * 0.15), r: 20,
   }));
 
-  // Consumers on the right — only for sensor-readings
+  // Consumers on the right — for sensor-readings
   const consumers = [
     { id: "dashboard", label: "Dashboard" },
     { id: "alerter",   label: "Alerter"   },
@@ -467,7 +467,15 @@ function getLayout() {
     y: H * (0.2 + i * 0.15),
   }));
 
-  return { sensors, topicReadings, partitionsReadings, topicHealth, partitionsHealth, consumers };
+  // Consumer on the right — for sensor-health
+  const healthConsumer = {
+    id: "health-dashboard",
+    label: "Dashboard",
+    x: W - padX,
+    y: H * 0.77,
+  };
+
+  return { sensors, topicReadings, partitionsReadings, topicHealth, partitionsHealth, consumers, healthConsumer };
 }
 
 // Track flashing nodes: key → expiry timestamp
@@ -496,11 +504,14 @@ function spawnParticle(msg) {
   ];
 
   if (isHeartbeat) {
-    // Heartbeats stop at the partition — no consumer
+    // Heartbeats flow to the health consumer
     particles.push({
       color: SENSOR_COLORS[msg.sensor_id],
       x: sensor.x, y: sensor.y,
-      waypoints: baseWaypoints,
+      waypoints: [
+        ...baseWaypoints,
+        { x: L.healthConsumer.x, y: L.healthConsumer.y, flashKey: "consumer-" + L.healthConsumer.id },
+      ],
       wpIndex: 0,
       speed: 3.5,
     });
@@ -649,6 +660,7 @@ function draw() {
   // ── connector lines: bottom lane (sensor-health) ──
   L.sensors.forEach(s => drawDashedLine(s.x + 55, s.y, L.topicHealth.x - 60, L.topicHealth.y));
   L.partitionsHealth.forEach(p => drawDashedLine(L.topicHealth.x + 60, L.topicHealth.y, p.x - p.r, p.y));
+  L.partitionsHealth.forEach(p => drawDashedLine(p.x + p.r, p.y, L.healthConsumer.x - 50, L.healthConsumer.y));
 
   // ── static nodes ──
   L.sensors.forEach(drawSensorNode);
@@ -657,6 +669,7 @@ function draw() {
   L.consumers.forEach(drawConsumerNode);
   drawTopicBox(L.topicHealth);
   L.partitionsHealth.forEach(drawPartitionNode);
+  drawConsumerNode(L.healthConsumer);
 
   // ── consumer labels ──
   ctx.save();
