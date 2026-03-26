@@ -714,12 +714,18 @@ function draw() {
   L.partitionsHealth.forEach(drawPartitionNode);
   drawConsumerNode(L.healthConsumer);
 
-  // ── consumer labels ──
+  // ── section labels ──
+  const labelY = canvas.height * 0.01;
   ctx.save();
-  ctx.font      = "10px system-ui";
-  ctx.fillStyle = "#475569";
-  ctx.textAlign = "center";
-  ctx.fillText("consumers", L.consumers[0].x, L.consumers[0].y - 28);
+  ctx.font          = "bold 11px system-ui";
+  ctx.fillStyle     = "#94a3b8";
+  ctx.textAlign     = "center";
+  ctx.textBaseline  = "top";
+  ctx.letterSpacing = "0.08em";
+  ctx.fillText("PRODUCERS",  L.sensors[1].x,             labelY);
+  ctx.fillText("TOPICS",     L.topicReadings.x,           labelY);
+  ctx.fillText("PARTITIONS", L.partitionsReadings[0].x,   labelY);
+  ctx.fillText("CONSUMERS",  L.consumers[0].x,            labelY);
   ctx.restore();
 
   // ── particles ──
