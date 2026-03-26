@@ -490,24 +490,35 @@ function spawnParticle(msg) {
   const partitions = isHeartbeat ? L.partitionsHealth : L.partitionsReadings;
   const partition  = partitions[msg.partition] ?? partitions[0];
 
-  const waypoints = [
+  const baseWaypoints = [
     { x: topic.x,     y: topic.y,     flashKey: topic.flashKey },
     { x: partition.x, y: partition.y, flashKey: partition.flashKey },
   ];
 
-  // Readings go on to a consumer; heartbeats stop at the partition
-  if (!isHeartbeat) {
-    const consumer = L.consumers[0];
-    waypoints.push({ x: consumer.x, y: consumer.y, flashKey: "consumer-" + consumer.id });
+  if (isHeartbeat) {
+    // Heartbeats stop at the partition — no consumer
+    particles.push({
+      color: SENSOR_COLORS[msg.sensor_id],
+      x: sensor.x, y: sensor.y,
+      waypoints: baseWaypoints,
+      wpIndex: 0,
+      speed: 3.5,
+    });
+  } else {
+    // Readings fork to both consumers independently
+    for (const consumer of L.consumers) {
+      particles.push({
+        color: SENSOR_COLORS[msg.sensor_id],
+        x: sensor.x, y: sensor.y,
+        waypoints: [
+          ...baseWaypoints,
+          { x: consumer.x, y: consumer.y, flashKey: "consumer-" + consumer.id },
+        ],
+        wpIndex: 0,
+        speed: 3.5,
+      });
+    }
   }
-
-  particles.push({
-    color: SENSOR_COLORS[msg.sensor_id],
-    x: sensor.x, y: sensor.y,
-    waypoints,
-    wpIndex: 0,
-    speed: 3.5,
-  });
 }
 
 // ── draw helpers ──
