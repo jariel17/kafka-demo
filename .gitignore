@@ -1,26 +1,4 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
 .venv/
-*.egg-info/
-dist/
-build/
-
-# uv
-uv.lock
-
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Docker volumes (managed by Docker, not committed)
-broker*-data/
+__pycache__/
+*.pyc
+.env

@@ -26,6 +26,12 @@ services:
       - broker1-data:/var/lib/kafka/data
     networks:
       - kafka-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server broker-1:19092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   broker-2:
     image: apache/kafka:4.2.0
@@ -54,6 +60,12 @@ services:
       - broker2-data:/var/lib/kafka/data
     networks:
       - kafka-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server broker-2:19092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   broker-3:
     image: apache/kafka:4.2.0
@@ -82,6 +94,37 @@ services:
       - broker3-data:/var/lib/kafka/data
     networks:
       - kafka-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server broker-3:19092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  kafka-init:
+    image: apache/kafka:4.2.0
+    container_name: kafka-init
+    depends_on:
+      broker-1:
+        condition: service_healthy
+      broker-2:
+        condition: service_healthy
+      broker-3:
+        condition: service_healthy
+    networks:
+      - kafka-net
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server broker-1:19092 \
+          --create --if-not-exists \
+          --topic sensor-readings \
+          --partitions 3 \
+          --replication-factor 3 \
+          --config min.insync.replicas=2
+        echo "Topic sensor-readings is ready."
+    restart: "no"
 
 volumes:
   broker1-data:
