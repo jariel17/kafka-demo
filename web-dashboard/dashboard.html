@@ -43,7 +43,7 @@
     }
 
     /* Canvas */
-    #flow-canvas { width: 100%; height: 360px; display: block; }
+    #flow-canvas { width: 100%; height: 440px; display: block; }
 
     /* Two-column grid */
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
@@ -219,7 +219,8 @@ const chartSeries  = {
   "sensor-2": [],
   "sensor-3": [],
 };
-let alertsShown = false;
+let alertsShown  = false;
+let clusterState = { brokers: [], partitions: [] };
 
 // ─── WEBSOCKET ────────────────────────────────────────────────────────────────
 const ws = new WebSocket(`ws://${location.host}/ws`);
@@ -371,6 +372,7 @@ async function brokerAction(brokerId, action, btn) {
 async function loadCluster() {
   const res  = await fetch("/api/cluster");
   const data = await res.json();
+  clusterState = data;
 
   document.getElementById("broker-list").innerHTML = data.brokers.map(b => {
     const dotCls = b.up ? "dot-up" : "dot-down";
@@ -422,39 +424,52 @@ function getLayout() {
   const H = canvas.height;
   const padX = 80;
 
+  // Broker nodes at the top — status driven by clusterState
+  const brokerXPositions = [W * 0.50, W * 0.60, W * 0.70];
+  const brokers = [1, 2, 3].map((id, i) => {
+    const info = clusterState.brokers.find(b => b.id === id);
+    return {
+      id,
+      label: `broker-${id}`,
+      x: brokerXPositions[i],
+      y: H * 0.08,
+      up: info ? info.up : true,
+    };
+  });
+
   // Sensors span the full height, shared by both topic lanes
   const sensors = [
     { id: "sensor-1", label: "sensor-1\nGreenhouse A" },
     { id: "sensor-2", label: "sensor-2\nGreenhouse B" },
     { id: "sensor-3", label: "sensor-3\nOpen Field"   },
-  ].map((s, i) => ({ ...s, x: padX, y: H * (0.2 + i * 0.3) }));
+  ].map((s, i) => ({ ...s, x: padX, y: H * (0.22 + i * 0.28) }));
 
-  // Top lane: sensor-readings
+  // Top lane: sensor-readings (shifted down to make room for broker strip)
   const topicReadings = {
     id: "sensor-readings",
     flashKey: "topic-readings",
-    x: W * 0.37, y: H * 0.27,
+    x: W * 0.37, y: H * 0.32,
     w: 130, h: 36,
     label: "sensor-readings",
     color: "#3b82f6",
   };
   const partitionsReadings = [0, 1, 2].map((id, i) => ({
     id, flashKey: "r-partition-" + id,
-    x: W * 0.60, y: H * (0.12 + i * 0.15), r: 20,
+    x: W * 0.60, y: H * (0.20 + i * 0.14), r: 20,
   }));
 
   // Bottom lane: sensor-health
   const topicHealth = {
     id: "sensor-health",
     flashKey: "topic-health",
-    x: W * 0.37, y: H * 0.77,
+    x: W * 0.37, y: H * 0.78,
     w: 120, h: 36,
     label: "sensor-health",
     color: "#22c55e",
   };
   const partitionsHealth = [0, 1, 2].map((id, i) => ({
     id, flashKey: "h-partition-" + id,
-    x: W * 0.60, y: H * (0.62 + i * 0.15), r: 20,
+    x: W * 0.60, y: H * (0.66 + i * 0.14), r: 20,
   }));
 
   // Consumers on the right — for sensor-readings
@@ -464,7 +479,7 @@ function getLayout() {
   ].map((c, i) => ({
     ...c,
     x: W - padX,
-    y: H * (0.2 + i * 0.15),
+    y: H * (0.24 + i * 0.14),
   }));
 
   // Consumer on the right — for sensor-health
@@ -472,10 +487,10 @@ function getLayout() {
     id: "health-dashboard",
     label: "Dashboard",
     x: W - padX,
-    y: H * 0.77,
+    y: H * 0.78,
   };
 
-  return { sensors, topicReadings, partitionsReadings, topicHealth, partitionsHealth, consumers, healthConsumer };
+  return { brokers, sensors, topicReadings, partitionsReadings, topicHealth, partitionsHealth, consumers, healthConsumer };
 }
 
 // Track flashing nodes: key → expiry timestamp
@@ -607,6 +622,33 @@ function drawConsumerNode(c) {
   ctx.fillText(c.label, c.x, c.y);
 }
 
+function drawBrokerNode(b) {
+  const col = b.up ? "#22c55e" : "#ef4444";
+  drawRoundRect(b.x, b.y, 90, 28, 6,
+    b.up ? "#0f2818" : "#2d0a0a",
+    col,
+    1.5
+  );
+  ctx.fillStyle    = col;
+  ctx.font         = "bold 10px system-ui";
+  ctx.textAlign    = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(b.label, b.x, b.y);
+}
+
+function drawLeaderLine(broker, partition) {
+  const col = broker.up ? "#334155" : "#4b1010";
+  ctx.save();
+  ctx.setLineDash([3, 4]);
+  ctx.strokeStyle = col;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(broker.x, broker.y + 14);
+  ctx.lineTo(partition.x, partition.y - partition.r);
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawDashedLine(x1, y1, x2, y2) {
   ctx.save();
   ctx.setLineDash([4, 5]);
@@ -663,6 +705,7 @@ function draw() {
   L.partitionsHealth.forEach(p => drawDashedLine(p.x + p.r, p.y, L.healthConsumer.x - 50, L.healthConsumer.y));
 
   // ── static nodes ──
+  L.brokers.forEach(drawBrokerNode);
   L.sensors.forEach(drawSensorNode);
   drawTopicBox(L.topicReadings);
   L.partitionsReadings.forEach(drawPartitionNode);
