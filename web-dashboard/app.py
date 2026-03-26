@@ -9,7 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 BOOTSTRAP_SERVERS = "localhost:9092,localhost:9094,localhost:9096"
-TOPIC = "sensor-readings"
+TOPICS = ["sensor-readings", "sensor-health"]
 HERE = Path(__file__).parent
 
 app = FastAPI()
@@ -36,13 +36,14 @@ def kafka_consumer_loop():
             "auto.offset.reset": "latest",
         }
     )
-    consumer.subscribe([TOPIC])
+    consumer.subscribe(TOPICS)
     while True:
         msg = consumer.poll(1.0)
         if msg is None or msg.error():
             continue
         data = json.loads(msg.value())
         data["partition"] = msg.partition()
+        data["type"] = "heartbeat" if msg.topic() == "sensor-health" else "reading"
         broadcast(data)
 
 
@@ -82,7 +83,7 @@ async def cluster_info():
         for b in metadata.brokers.values()
     ]
 
-    topic = metadata.topics.get(TOPIC)
+    topic = metadata.topics.get("sensor-readings")
     partitions = []
     if topic:
         for p in topic.partitions.values():

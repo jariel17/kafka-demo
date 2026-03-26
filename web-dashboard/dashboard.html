@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kafka IoT Farm Monitor – Chiriqui Highlands</title>
+  <title>Kafka IoT Farm Monitor – Chiriqui, Panama</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -129,7 +129,7 @@
 
 <header>
   <h1>Kafka IoT Farm Monitor</h1>
-  <p>Chiriqui Highlands, Panama — Real-time sensor pipeline</p>
+  <p>Chiriqui, Panama — Real-time sensor pipeline</p>
 </header>
 
 <div class="main">
@@ -182,7 +182,15 @@
     <canvas id="temp-chart"></canvas>
   </section>
 
-  <!-- 4. Alerts -->
+  <!-- 4. Sensor Health -->
+  <section>
+    <h2>Sensor Health</h2>
+    <div id="health-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem">
+      <div class="no-alerts">Waiting for heartbeats...</div>
+    </div>
+  </section>
+
+  <!-- 5. Alerts -->
   <section>
     <h2>Alerts — Temperature above 38°C</h2>
     <div id="alerts-list">
@@ -202,7 +210,9 @@ const SENSOR_COLORS = {
 const MAX_CHART_POINTS = 40;
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-const sensorLatest = {};
+const sensorLatest   = {};
+const sensorHeartbeat = {};   // sensor_id → last heartbeat timestamp (ms)
+const OFFLINE_AFTER_MS = 15000;  // mark offline if no heartbeat for 15s
 const chartLabels  = [];
 const chartSeries  = {
   "sensor-1": [],
@@ -215,11 +225,16 @@ let alertsShown = false;
 const ws = new WebSocket(`ws://${location.host}/ws`);
 ws.onmessage = (e) => {
   const msg = JSON.parse(e.data);
-  sensorLatest[msg.sensor_id] = msg;
-  updateSensorTable();
-  updateChart(msg);
-  checkAlert(msg);
-  spawnParticle(msg);
+  if (msg.type === "heartbeat") {
+    sensorHeartbeat[msg.sensor_id] = Date.now();
+    updateHealthGrid();
+  } else {
+    sensorLatest[msg.sensor_id] = msg;
+    updateSensorTable();
+    updateChart(msg);
+    checkAlert(msg);
+    spawnParticle(msg);
+  }
 };
 
 // ─── SENSOR TABLE ─────────────────────────────────────────────────────────────
@@ -243,6 +258,32 @@ function updateSensorTable() {
     </tr>`;
   }).join("");
 }
+
+// ─── SENSOR HEALTH ────────────────────────────────────────────────────────────
+function updateHealthGrid() {
+  const grid = document.getElementById("health-grid");
+  const now  = Date.now();
+  grid.innerHTML = Object.entries(sensorHeartbeat)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, ts]) => {
+      const online  = (now - ts) < OFFLINE_AFTER_MS;
+      const ago     = Math.floor((now - ts) / 1000);
+      const color   = SENSOR_COLORS[id] || "#94a3b8";
+      return `<div class="partition-card">
+        <div class="plabel" style="color:${color};font-weight:600">${id}</div>
+        <div class="pval">${sensorLatest[id]?.location ?? "—"}</div>
+        <div style="margin-top:0.35rem;display:flex;align-items:center;gap:0.5rem">
+          <span class="badge ${online ? "badge-normal" : "badge-alert"}">
+            ${online ? "ONLINE" : "OFFLINE"}
+          </span>
+          <span style="font-size:0.75rem;color:#64748b">${ago}s ago</span>
+        </div>
+      </div>`;
+    }).join("");
+}
+
+// Re-check online/offline status every 2 seconds even without new heartbeats
+setInterval(updateHealthGrid, 2000);
 
 // ─── CHART ────────────────────────────────────────────────────────────────────
 const tempChart = new Chart(
