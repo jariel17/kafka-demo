@@ -123,7 +123,16 @@ services:
           --partitions 3 \
           --replication-factor 3 \
           --config min.insync.replicas=2
-        echo "Topic sensor-readings is ready."
+
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server broker-1:19092 \
+          --create --if-not-exists \
+          --topic sensor-health \
+          --partitions 3 \
+          --replication-factor 3 \
+          --config min.insync.replicas=2
+
+        echo "Topics sensor-readings and sensor-health are ready."
     restart: "no"
 
 volumes:
