@@ -432,7 +432,7 @@ function getLayout() {
       id,
       label: `broker-${id}`,
       x: brokerXPositions[i],
-      y: H * 0.08,
+      y: H * 0.06,
       up: info ? info.up : true,
     };
   });
@@ -715,17 +715,17 @@ function draw() {
   drawConsumerNode(L.healthConsumer);
 
   // ── section labels ──
-  const labelY = canvas.height * 0.01;
+  const H = canvas.height;
   ctx.save();
   ctx.font          = "bold 11px system-ui";
   ctx.fillStyle     = "#94a3b8";
   ctx.textAlign     = "center";
   ctx.textBaseline  = "top";
   ctx.letterSpacing = "0.08em";
-  ctx.fillText("PRODUCERS",  L.sensors[1].x,             labelY);
-  ctx.fillText("TOPICS",     L.topicReadings.x,           labelY);
-  ctx.fillText("PARTITIONS", L.partitionsReadings[0].x,   labelY);
-  ctx.fillText("CONSUMERS",  L.consumers[0].x,            labelY);
+  ctx.fillText("PRODUCERS",  L.sensors[1].x,           H * 0.05);
+  ctx.fillText("TOPICS",     L.topicReadings.x,         H * 0.18);
+  ctx.fillText("PARTITIONS", L.partitionsReadings[0].x, H * 0.11);
+  ctx.fillText("CONSUMERS",  L.consumers[0].x,          H * 0.05);
   ctx.restore();
 
   // ── particles ──
