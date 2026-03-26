@@ -73,15 +73,20 @@ async def websocket_endpoint(ws: WebSocket):
             clients.discard(ws)
 
 
+KNOWN_BROKERS = {1, 2, 3}
+
+
 @app.get("/api/cluster")
 async def cluster_info():
     admin = AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
     metadata = admin.list_topics(timeout=5)
 
-    brokers = [
-        {"id": b.id, "host": b.host, "port": b.port}
-        for b in metadata.brokers.values()
-    ]
+    alive_ids = {b.id for b in metadata.brokers.values()}
+    brokers = []
+    for b in metadata.brokers.values():
+        brokers.append({"id": b.id, "host": b.host, "port": b.port, "up": True})
+    for broker_id in KNOWN_BROKERS - alive_ids:
+        brokers.append({"id": broker_id, "host": f"broker-{broker_id}", "port": "—", "up": False})
 
     topic = metadata.topics.get("sensor-readings")
     partitions = []
@@ -99,5 +104,30 @@ async def cluster_info():
     return {
         "brokers": sorted(brokers, key=lambda b: b["id"]),
         "partitions": sorted(partitions, key=lambda p: p["id"]),
-        "controller_id": metadata.controller_id,
     }
+
+
+@app.post("/api/broker/{broker_id}/stop")
+async def stop_broker(broker_id: int):
+    if broker_id not in KNOWN_BROKERS:
+        return {"error": "invalid broker id"}
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "stop", f"broker-{broker_id}",
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return {"status": "stopped", "broker_id": broker_id}
+
+
+@app.post("/api/broker/{broker_id}/start")
+async def start_broker(broker_id: int):
+    if broker_id not in KNOWN_BROKERS:
+        return {"error": "invalid broker id"}
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "start", f"broker-{broker_id}",
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return {"status": "started", "broker_id": broker_id}

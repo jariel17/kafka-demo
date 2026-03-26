@@ -359,17 +359,32 @@ function checkAlert(msg) {
   list.prepend(item);
 }
 
+// ─── BROKER CONTROLS ──────────────────────────────────────────────────────────
+async function brokerAction(brokerId, action, btn) {
+  btn.disabled = true;
+  btn.textContent = action === "stop" ? "Stopping..." : "Starting...";
+  await fetch(`/api/broker/${brokerId}/${action}`, { method: "POST" });
+  await loadCluster();
+}
+
 // ─── CLUSTER STATUS ───────────────────────────────────────────────────────────
 async function loadCluster() {
   const res  = await fetch("/api/cluster");
   const data = await res.json();
 
   document.getElementById("broker-list").innerHTML = data.brokers.map(b => {
-    const isCtrl = b.id === data.controller_id;
+    const dotCls = b.up ? "dot-up" : "dot-down";
+    const action = b.up ? "stop" : "start";
+    const btnStyle = b.up
+      ? "background:#7f1d1d;color:#fca5a5"
+      : "background:#14532d;color:#86efac";
     return `<div class="broker-row">
-      <div class="dot dot-up"></div>
-      <span>broker-${b.id} &mdash; ${b.host}:${b.port}</span>
-      ${isCtrl ? '<span class="badge badge-info">controller</span>' : ""}
+      <div class="dot ${dotCls}"></div>
+      <span style="flex:1">broker-${b.id} &mdash; ${b.host}:${b.port}</span>
+      <button class="btn" style="${btnStyle}"
+        onclick="brokerAction(${b.id}, '${action}', this)">
+        ${action === "stop" ? "Stop" : "Start"}
+      </button>
     </div>`;
   }).join("");
 
