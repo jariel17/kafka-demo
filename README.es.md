@@ -1,6 +1,6 @@
 # Kafka Demo — Panel de sensores IoT
 
-Demo autocontenida de Apache Kafka corriendo en Docker, que simula una red de sensores IoT con un panel web en tiempo real.
+Demo de Apache Kafka corriendo en Docker, que simula una red de sensores IoT con un panel web en tiempo real.
 
 ## Qué hace
 
@@ -62,7 +62,7 @@ Los topics están listos cuando el contenedor `kafka-init` termina con código 0
 uv run uvicorn web-dashboard.app:app --reload
 ```
 
-Abrí **http://localhost:8000** en el navegador.
+Abre **http://localhost:8000** en el navegador.
 
 ### 3. Iniciar el productor
 
@@ -103,4 +103,4 @@ docker compose down -v
 
 ## Demo de tolerancia a fallos
 
-El panel tiene botones **Detener / Iniciar** para cada broker. Detener un broker deja el clúster completamente funcional (factor de replicación 3, ISR mínimo 2). Detener dos brokers hará que el clúster deje de aceptar escrituras. Usá esto para observar en vivo la elección de líder de Kafka y el comportamiento del ISR en el mapa de particiones.
+El panel tiene botones **Detener / Iniciar** para cada broker. Detener un broker deja el clúster completamente funcional (factor de replicación 3, ISR mínimo 2). Detener dos brokers hará que el clúster deje de aceptar escrituras.
